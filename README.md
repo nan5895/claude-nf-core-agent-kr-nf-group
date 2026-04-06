@@ -1,4 +1,4 @@
-# 🧬 nf-core Agent for Claude Code
+# 🧬 nf-core plugin for Claude Code
 
 ![nf-core](https://img.shields.io/badge/nf--core-pipelines-23aa62.svg)
 
@@ -34,7 +34,13 @@ You can install and inject the agent into any working directory with a single co
 Run the following command in the directory where your data lives (or where you want to run your analysis):
 
 ```bash
-npx claude-nf-core-agent
+npx claude-nf-core-agent-kr-nf-group
+```
+
+or 
+
+```bash
+git clone https://github.com/nan5895/claude-nf-core-agent-kr-nf-group.git
 ```
 
 *This command will automatically create the `.claude/commands/nf.md` instruction file and copy the necessary backend Python scripts into your current directory without overwriting your existing data.*
