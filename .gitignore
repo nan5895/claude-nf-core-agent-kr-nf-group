@@ -1,0 +1,17 @@
+# Claude 개인 메모리 및 대화 기록 업로드 방지
+.claude/*
+!.claude/commands/
+
+# Nextflow 및 데이터 폴더 업로드 방지
+data/
+results/
+work/
+.nextflow/
+*.fastq.gz
+*.fasta
+*.bam
+*.log
+
+# Python 캐시 방지
+__pycache__/
+*.pyc
