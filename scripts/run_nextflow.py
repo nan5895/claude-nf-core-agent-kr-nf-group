@@ -1,7 +1,9 @@
-"""nf-core 파이프라인 안전 실행 및 모니터링 스크립트 (Usage 팁 + 파라미터 가이드)."""
+"""nf-core pipeline safe execution and monitoring script (Usage tips + parameter guide)."""
 
 import json
+import math
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -22,6 +24,7 @@ MAX_GUIDED = 10
 SKIP_PARAMS = {
     "input", "outdir", "publish_dir_mode", "email", "plaintext_email",
     "monochrome_logs", "monochromeLogs", "help", "version", "validate_params",
+    "max_memory", "max_cpus", "max_time",
 }
 
 # 제외할 섹션 (파이프라인 로직과 무관한 인프라/일반 설정)
@@ -310,13 +313,42 @@ def run_parameter_guide(params: List[dict]) -> str:
     return " ".join(selected)
 
 
+def get_local_resources() -> Tuple[int, float]:
+    """Detect CPU cores and physical RAM (GB) for Mac/Linux."""
+    system = platform.system()
+    cores = os.cpu_count() or 1
+
+    if system == "Darwin":
+        try:
+            out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True)
+            ram_gb = int(out.strip()) / (1024 ** 3)
+        except Exception:
+            ram_gb = 8.0
+    else:
+        try:
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.startswith("MemTotal"):
+                        kb = int(line.split()[1])
+                        ram_gb = kb / (1024 ** 2)
+                        break
+                else:
+                    ram_gb = 8.0
+        except Exception:
+            ram_gb = 8.0
+
+    return cores, ram_gb
+
+
 def build_command(pipeline: str, samplesheet: str, outdir: str) -> str:
-    return (
-        f"nextflow run {pipeline} "
-        f"-profile {DEFAULT_PROFILE} "
-        f"--input {os.path.abspath(samplesheet)} "
-        f"--outdir {os.path.abspath(outdir)}"
-    )
+    parts = [
+        f"nextflow run {pipeline}",
+        f"-profile {DEFAULT_PROFILE}",
+    ]
+    if samplesheet.lower() != "none":
+        parts.append(f"--input {os.path.abspath(samplesheet)}")
+    parts.append(f"--outdir {os.path.abspath(outdir)}")
+    return " ".join(parts)
 
 
 def main():
@@ -328,16 +360,34 @@ def main():
     samplesheet = sys.argv[2]
     outdir = sys.argv[3]
 
-    if not os.path.isfile(samplesheet):
-        print(f"[ERROR] 샘플시트를 찾을 수 없습니다: {samplesheet}")
+    # Validate samplesheet (skip check when samplesheet is "none")
+    if samplesheet.lower() != "none" and not os.path.isfile(samplesheet):
+        print(f"[ERROR] Samplesheet not found: {samplesheet}")
         sys.exit(1)
 
-    # 0) Usage 문서 기반 팁 표시
-    print(f"[INFO] '{pipeline}' 공식 문서를 가져오는 중...")
+    # 0) Environment selection
+    print("\n" + "=" * 60)
+    print("  Where will you run this pipeline?")
+    print("    1. Local computer (needs resource limits)")
+    print("    2. Cloud / HPC (Slurm, AWS, etc.)")
+    print("=" * 60)
+    env_choice = input("  Select [1/2]: ").strip()
+
+    resource_flags = ""
+    if env_choice == "1":
+        cores, ram_gb = get_local_resources()
+        safe_cores = max(1, cores - 1)
+        safe_ram = math.floor(ram_gb * 0.9)
+        resource_flags = f"--max_cpus {safe_cores} --max_memory '{safe_ram}.GB'"
+        print(f"\n[INFO] Detected {cores} cores, {ram_gb:.1f} GB RAM.")
+        print(f"[INFO] Safe limits: --max_cpus {safe_cores}  --max_memory '{safe_ram}.GB'")
+
+    # 1) Usage doc tips
+    print(f"\n[INFO] Fetching '{pipeline}' official docs...")
     show_usage_tips(pipeline)
 
-    # 1) 스키마 기반 파라미터 가이드
-    print(f"\n[INFO] '{pipeline}' 스키마를 GitHub에서 가져오는 중...")
+    # 2) Schema-based parameter guide
+    print(f"\n[INFO] Fetching '{pipeline}' schema from GitHub...")
     schema = fetch_schema(pipeline)
     guided_params_str = ""
 
@@ -346,18 +396,20 @@ def main():
         if params:
             guided_params_str = run_parameter_guide(params)
         else:
-            print("[INFO] 가이드할 enum 파라미터가 없습니다.\n")
+            print("[INFO] No guided parameters found.\n")
     else:
-        print("[WARN] 스키마를 가져올 수 없습니다. 수동 입력으로 진행합니다.\n")
+        print("[WARN] Could not fetch schema. Proceeding with manual input.\n")
 
-    # 2) 추가 자유 입력
+    # 3) Additional free-form parameters
     extra = input(
-        "그 외 추가 파라미터가 있다면 입력하세요 (예: --skip_fastqc --save_trimmed) "
-        "[없으면 그냥 Enter]: "
+        "Enter any additional parameters (e.g., --skip_fastqc --save_trimmed) "
+        "[press Enter to skip]: "
     ).strip()
 
-    # 3) 최종 명령어 조합
+    # 4) Assemble final command
     cmd = build_command(pipeline, samplesheet, outdir)
+    if resource_flags:
+        cmd = f"{cmd} {resource_flags}"
     if guided_params_str:
         cmd = f"{cmd} {guided_params_str}"
     if extra:
@@ -365,15 +417,15 @@ def main():
 
     print()
     print("=" * 60)
-    print("[Dry-run] 다음 명령어가 실행됩니다:\n")
+    print("[Dry-run] The following command will be executed:\n")
     print(f"  {cmd}\n")
-    print(f"  로그 파일: {os.path.abspath(LOG_FILE)}")
+    print(f"  Log file: {os.path.abspath(LOG_FILE)}")
     print("=" * 60)
 
-    confirm = input("\n이 명령어를 백그라운드에서 실행하시겠습니까? (y/n): ").strip().lower()
+    confirm = input("\nRun this command in the background? (y/n): ").strip().lower()
 
     if confirm != "y":
-        print("실행을 취소합니다.")
+        print("Execution cancelled.")
         sys.exit(0)
 
     log = open(LOG_FILE, "w")
@@ -385,8 +437,8 @@ def main():
         start_new_session=True,
     )
 
-    print(f"\n[OK] 백그라운드 실행 시작 (PID: {proc.pid})")
-    print(f"진행 상황을 보려면: tail -f {LOG_FILE}")
+    print(f"\n[OK] Background execution started (PID: {proc.pid})")
+    print(f"To monitor progress: tail -f {LOG_FILE}")
 
 
 if __name__ == "__main__":

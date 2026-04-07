@@ -84,3 +84,13 @@ When installed, the package provisions the following structure:
     - `generate_samplesheet.py`: The dynamic, universal schema parser and generator.
     - `run_nextflow.py`: Interactive parameter tuning and deployment.
     - `monitor_nextflow.py`: Real-time log tailing and error diagnostics.
+
+
+## ⚠️ Disclaimer & Liability Warning
+
+Please read carefully before using this tool:
+
+1. **AI Hallucinations & Verification:** This agent relies on Anthropic's Claude. While highly capable, AI models can occasionally hallucinate incorrect parameters, inappropriate pipelines, or misinterpret data structures. **You MUST always review and verify the generated `nextflow run` command and `samplesheet.csv` before giving the final execution approval.**
+2. **Research Use Only (RUO):** This tool is intended strictly for educational and research purposes. It is **NOT** validated for clinical diagnostics, patient treatment decisions, or medical use.
+3. **Infrastructure Costs & Resource Management:** Bioinformatics pipelines can consume massive amounts of CPU, memory, and storage. The creators of this plugin are not responsible for any unexpected cloud billing (AWS/GCP/Azure) or local system crashes (e.g., OOM) resulting from the agent's execution.
+4. **Provided "AS-IS":** This software is provided "as is", without warranty of any kind. The maintainers assume no liability for data loss, environment corruption, or incorrect scientific results. You are solely responsible for your own data and infrastructure.
