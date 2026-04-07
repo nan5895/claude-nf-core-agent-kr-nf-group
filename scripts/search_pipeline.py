@@ -46,25 +46,7 @@ def main():
         desc_short = (desc[:60] + "...") if len(desc) > 63 else desc
         print(f"{i:>3}  nf-core/{name:<21} {version:<12} {desc_short}")
 
-    # 인터랙티브 선택
-    print()
-    while True:
-        choice = input("원하는 파이프라인 번호를 선택하세요 (종료: q): ").strip()
-        if choice.lower() == "q":
-            print("종료합니다.")
-            break
-        try:
-            idx = int(choice)
-            if idx < 1 or idx > len(results):
-                raise ValueError
-        except ValueError:
-            print(f"1~{len(results)} 사이의 번호를 입력해 주세요.")
-            continue
-
-        name, desc, version = results[idx - 1]
-        print(f"\n>>> 선택된 파이프라인: nf-core/{name}")
-        print(f">>> 최신 버전: {version}")
-        break
+    sys.exit(0)
 
 
 if __name__ == "__main__":
