@@ -34,7 +34,7 @@ You can install and inject the agent into any working directory with a single co
 Run the following command in the directory where your data lives (or where you want to run your analysis):
 
 ```bash
-npx claude-nf-core-agent-kr-nf-group
+npx claude-nf-core-agent-kr-nf-group@latest
 ```
 
 or 
